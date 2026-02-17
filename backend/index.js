@@ -7,11 +7,12 @@ const { OAuth2Client } = require('google-auth-library');
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
+const frontend = process.env.FRONTEND_URL || 'http://localhost:5173';
 
 const app = express();
 const port = process.env.PORT || 5000;
 
-app.use(cors({ origin: '*' }));
+app.use(cors({ origin: frontend }));
 app.use(express.json());
 // Serve frontend files so the app can be loaded from the same origin (required for Google Identity)
 const frontDir = path.join(__dirname, '..', '1234.html');
