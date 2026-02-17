@@ -1,0 +1,47 @@
+## Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-lock.yaml
+package-lock.json
+
+## Env files
+.env
+.env.*
+.env.local
+
+## Vite / Build
+dist/
+.vite/
+build/
+out/
+
+## Logs
+*.log
+logs/
+
+## OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+## IDEs
+.vscode/
+.idea/
+
+## MacOS archive metadata
+__MACOSX/
+
+## Frontend/backend specific
+/frontend/node_modules/
+/frontend/dist/
+/frontend/.env
+/frontend/.vite/
+/backend/node_modules/
+/backend/.env
+
+## Misc
+.sass-cache/
+coverage/
+*.tgz
