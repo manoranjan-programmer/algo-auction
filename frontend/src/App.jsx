@@ -29,10 +29,24 @@ function App() {
   const googleScriptLoaded = useRef(false);
 
   useEffect(() => {
-    // Check auth on load
-    if (token) {
-      setPage('team');
+    // Parse token from URL (after OAuth redirect)
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlToken = params.get('token');
+      if (urlToken) {
+        localStorage.setItem('cld_token', urlToken);
+        setToken(urlToken);
+        // remove token from address bar
+        const u = new URL(window.location.href);
+        u.searchParams.delete('token');
+        window.history.replaceState({}, document.title, u.pathname + u.hash);
+      }
+    } catch (e) {
+      // ignore
     }
+
+    // Check auth on load
+    if (token) setPage('team');
 
     // Fetch config
     fetch(`${API_URL}/config`)

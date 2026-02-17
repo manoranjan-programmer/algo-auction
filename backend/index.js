@@ -12,7 +12,17 @@ const frontend = process.env.FRONTEND_URL || 'http://localhost:5173';
 const app = express();
 const port = process.env.PORT || 5000;
 
-app.use(cors({ origin: frontend }));
+const allowedOrigins = [frontend, 'http://127.0.0.1:5173', 'http://localhost:5173', 'http://localhost:3000'];
+console.log('CORS allowed origins:', allowedOrigins);
+app.use(cors({
+  origin: function(origin, callback) {
+    if (!origin) return callback(null, true); // allow non-browser tools or same-origin
+    if (allowedOrigins.indexOf(origin) !== -1) return callback(null, true);
+    console.warn('Blocked CORS origin:', origin);
+    return callback(null, false);
+  },
+  credentials: true
+}));
 app.use(express.json());
 // Serve frontend files so the app can be loaded from the same origin (required for Google Identity)
 const frontDir = path.join(__dirname, '..', '1234.html');
@@ -119,6 +129,55 @@ async function start() {
       } catch (err) {
         console.error('Google sign-in failed', err && err.message ? err.message : err);
         res.status(500).json({ ok: false, error: String(err) });
+      }
+    });
+
+    // Server-side OAuth flow: redirect to Google
+    app.get('/auth/google', (req, res) => {
+      try {
+        const oauth2Client = new OAuth2Client(
+          GOOGLE_CLIENT_ID || undefined,
+          process.env.GOOGLE_CLIENT_SECRET || undefined,
+          process.env.GOOGLE_CALLBACK_URL || undefined
+        );
+        const url = oauth2Client.generateAuthUrl({
+          access_type: 'offline',
+          scope: ['profile', 'email'],
+        });
+        res.redirect(url);
+      } catch (err) {
+        console.error('Failed to start Google OAuth', err && err.message ? err.message : err);
+        res.status(500).send('Google OAuth error');
+      }
+    });
+
+    // OAuth callback: exchange code, create/find user, return JWT (redirect to frontend with token)
+    app.get('/auth/google/callback', async (req, res) => {
+      try {
+        const code = req.query.code;
+        if (!code) return res.status(400).send('Missing code');
+        const oauth2Client = new OAuth2Client(
+          GOOGLE_CLIENT_ID || undefined,
+          process.env.GOOGLE_CLIENT_SECRET || undefined,
+          process.env.GOOGLE_CALLBACK_URL || undefined
+        );
+        const { tokens } = await oauth2Client.getToken(code);
+        if (!tokens || !tokens.id_token) return res.status(400).send('No id_token returned');
+        const ticket = await googleClient.verifyIdToken({ idToken: tokens.id_token, audience: GOOGLE_CLIENT_ID || undefined });
+        const payload = ticket.getPayload();
+        const email = payload.email;
+        let user = await usersColl.findOne({ email });
+        if (!user) {
+          const newUser = { email, name: payload.name || '', googleId: payload.sub, createdAt: new Date() };
+          const r = await usersColl.insertOne(newUser);
+          user = Object.assign(newUser, { _id: r.insertedId });
+        }
+        const token = jwt.sign({ id: user._id.toString(), email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+        const redirectTo = (process.env.FRONTEND_URL || frontend) + `/?token=${encodeURIComponent(token)}`;
+        res.redirect(redirectTo);
+      } catch (err) {
+        console.error('Google OAuth callback failed', err && err.message ? err.message : err);
+        res.status(500).send('Google OAuth callback error');
       }
     });
 
